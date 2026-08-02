@@ -1,0 +1,102 @@
+name: Back-merge
+
+# リリースブランチ (既定 master) を開発ブランチ (既定 develop) へ fast-forward で追従させる。
+#
+# feature → develop → master のフローでは、リリースを **マージコミット** で行うため
+# (squash すると次回の「develop is ahead of master」判定が壊れる)、マージ直後は master だけが
+# 1 コミット先行し、develop は放置すると毎リリース 1 回ずつ取り残される。
+#
+# back-merge PR を作る方式もあるが、リリース直後の master は merge(master_prev, develop_head)
+# なので develop は必ず master の祖先であり、master:develop への push は **常に fast-forward**
+# になる。結果 develop == master となり、マージコミットが 1 つも増えない。
+#
+# 言語非依存 (git 操作のみ)。TypeScript / Rust / Python / Theos いずれのリポでも同じものが使える。
+#
+# 呼び出し側の例:
+#
+#   name: Back-merge
+#   on:
+#     pull_request:
+#       branches: [master]
+#       types: [closed]
+#   permissions:
+#     contents: write
+#   jobs:
+#     backmerge:
+#       if: github.event.pull_request.merged == true
+#       uses: qtmleap/actions/.github/workflows/backmerge.yaml@v1
+#
+# セルフホストランナーを使う場合は with: runner: '["self-hosted","ubuntu-24.04"]' を足す。
+on:
+  workflow_call:
+    inputs:
+      source:
+        description: "追従元 (リリース先) のブランチ"
+        type: string
+        default: master
+      target:
+        description: "追従先 (開発) のブランチ"
+        type: string
+        default: develop
+      runner:
+        description: 'ランナーのラベル。JSON 配列で渡す (例: ''["self-hosted","ubuntu-24.04"]'')'
+        type: string
+        default: '["ubuntu-latest"]'
+
+permissions:
+  contents: write
+
+jobs:
+  backmerge:
+    name: Fast-forward ${{ inputs.target }} to ${{ inputs.source }}
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward
+        env:
+          SOURCE: ${{ inputs.source }}
+          TARGET: ${{ inputs.target }}
+          EVENT_NAME: ${{ github.event_name }}
+          MERGED: ${{ github.event.pull_request.merged }}
+        run: |
+          set -euo pipefail
+
+          # 呼び出し側が job の if を書き忘れてもここで止まる。pull_request 以外のトリガ
+          # (workflow_dispatch など) から呼ばれた場合は素通しする。
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$MERGED" != "true" ]; then
+            echo "PR がマージされていないため何もしません"
+            exit 0
+          fi
+
+          # pull_request イベントの checkout は refs/pull/N/merge しか取らないため、
+          # 対象の 2 ブランチを明示的な refspec で取り直す。
+          # (これはローカルの remote-tracking ref を更新するだけで、push ではない)
+          git fetch origin \
+            "+refs/heads/${SOURCE}:refs/remotes/origin/${SOURCE}" \
+            "+refs/heads/${TARGET}:refs/remotes/origin/${TARGET}"
+
+          if ! git rev-parse --verify -q "origin/${TARGET}" >/dev/null; then
+            echo "::warning::ブランチ ${TARGET} が存在しないため何もしません"
+            exit 0
+          fi
+
+          if [ "$(git rev-parse "origin/${TARGET}")" = "$(git rev-parse "origin/${SOURCE}")" ]; then
+            echo "${TARGET} は既に ${SOURCE} と同一です"
+            exit 0
+          fi
+
+          # target が source の祖先でない = リリース後に target へ別のコミットが入っている。
+          # この場合 fast-forward できないので push せずに終える。--force は使わない
+          # (target の履歴を壊すため)。従来どおり back-merge PR を手で作って解決する。
+          if ! git merge-base --is-ancestor "origin/${TARGET}" "origin/${SOURCE}"; then
+            echo "::warning::${TARGET} が ${SOURCE} の祖先ではないため fast-forward できません。" \
+              "back-merge PR を手動で作成してください"
+            exit 0
+          fi
+
+          git push origin "origin/${SOURCE}:refs/heads/${TARGET}"
+          echo "${TARGET} を $(git rev-parse --short "origin/${SOURCE}") へ fast-forward しました"
