@@ -1,0 +1,22 @@
+name: Setup existing rbenv Ruby
+description: Use installed MRI with job-owned gems and frozen locked Bundler
+inputs:
+  repo-root:
+    description: App checkout relative to GITHUB_WORKSPACE
+    default: '.'
+  ruby-version:
+    description: Exact installed MRI version
+    default: '3.4.10'
+  working-directory:
+    description: Repository-relative Gemfile directory
+    default: '.'
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SHARED_REPO_ROOT: ${{ inputs.repo-root }}
+        SHARED_ACTION_PATH: ${{ github.action_path }}
+        SHARED_RUBY_VERSION: ${{ inputs.ruby-version }}
+        SHARED_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: bash "$SHARED_ACTION_PATH/../../runtime/setup-ruby.sh"

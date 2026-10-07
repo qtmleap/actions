@@ -1,0 +1,10 @@
+self-hosted-runner:
+  labels:
+    - Linux
+    - X64
+    - ubuntu-latest
+    - docker
+    - macOS
+    - ARM64
+    - Mac26
+    - Mac27

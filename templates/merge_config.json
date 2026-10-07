@@ -1,0 +1,10 @@
+{
+  "repository": "qtmleap/REPLACE_APP",
+  "branches": ["develop", "master"],
+  "workflow": ".github/workflows/testflight.yaml",
+  "required_checks": {
+    ".github/workflows/integration.yaml": ["REPLACE_WITH_ALL_EXISTING_REQUIRED_JOB_NAMES"],
+    ".github/workflows/ios-ci.yaml": ["Release Policy"]
+  },
+  "record_only_paths": ["fastlane/testflight/last_shipped.json"]
+}

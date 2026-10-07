@@ -1,0 +1,40 @@
+name: Repository read token
+description: Mint a revocable read-only token for match or QuantumLeap
+inputs:
+  repo-root:
+    description: App checkout relative to GITHUB_WORKSPACE
+    default: '.'
+  client-id:
+    description: Protected GitHub App client ID
+    required: true
+  private-key:
+    description: Protected GitHub App private key (input only)
+    required: true
+  repository:
+    description: match or QuantumLeap
+    required: true
+outputs:
+  token:
+    description: Revocable scoped installation token
+    value: ${{ steps.token.outputs.token }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SHARED_REPO_ROOT: ${{ inputs.repo-root }}
+        SHARED_ACTION_PATH: ${{ github.action_path }}
+        SHARED_REPOSITORY: ${{ inputs.repository }}
+      run: |
+        case "$SHARED_REPOSITORY" in match|QuantumLeap) ;; *) exit 1 ;; esac
+        export SHARED_ACTION_ROOT="$(cd "$SHARED_ACTION_PATH/../.." && pwd -P)"
+        ruby -r "$SHARED_ACTION_ROOT/runtime/bootstrap" -e 'app=SharedCI::Bootstrap.app_root!; revision=SharedCI::Bootstrap.lock!(app).fetch("revision"); expected=ENV["QTMLEAP_ACTIONS_REVISION"]; abort "Revision mismatch" if expected && expected != revision; SharedCI::Bootstrap.export!(root: ENV.fetch("SHARED_ACTION_ROOT"), app_root: app, revision: revision)'
+    - id: token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # observed official v3.2.0
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: qtmleap
+        repositories: ${{ inputs.repository }}
+        permission-contents: read
+        skip-token-revoke: 'false'

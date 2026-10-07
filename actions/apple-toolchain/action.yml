@@ -1,0 +1,22 @@
+name: Apple toolchain
+description: Verify an explicit installed Xcode without changing host selection
+inputs:
+  repo-root:
+    description: App checkout relative to GITHUB_WORKSPACE
+    default: '.'
+  xcode-version:
+    description: Major profile 26 or 27, or exact installed Xcode version
+    required: true
+  developer-dir:
+    description: Absolute Xcode developer directory
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SHARED_REPO_ROOT: ${{ inputs.repo-root }}
+        SHARED_ACTION_PATH: ${{ github.action_path }}
+        SHARED_XCODE_VERSION: ${{ inputs.xcode-version }}
+        SHARED_DEVELOPER_DIR: ${{ inputs.developer-dir }}
+      run: bash "$SHARED_ACTION_PATH/../../runtime/apple-toolchain.sh"
