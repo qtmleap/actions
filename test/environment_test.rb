@@ -49,4 +49,14 @@ class EnvironmentTest < Minitest::Test
     assert status.success?, output
     assert_empty JSON.parse(output)
   end
+  def test_tool_children_cannot_restore_bundler_loader_metadata
+    ENV.update("BUNDLER_ORIG_RUBYOPT" => "-rfixture-missing-loader",
+      "BUNDLER_ORIG_RUBYLIB" => "/fixture/ambient-loader", "BUNDLER_ORIG_PATH" => "/fixture/ambient-tools",
+      "BUNDLER_SETUP" => "/fixture/ambient-setup.rb", "BUNDLER_VERSION" => "999.999.999")
+    child = SharedCI::Environment.child
+    %w[BUNDLER_SETUP BUNDLER_VERSION BUNDLER_ORIG_RUBYOPT BUNDLER_ORIG_RUBYLIB BUNDLER_ORIG_PATH].each { |key| assert_nil child[key] }
+    output, status = Open3.capture2e(child, RbConfig.ruby, "-rjson", "-e", "puts JSON.generate(ENV.keys.grep(/^BUNDLER_/))", unsetenv_others: true)
+    assert status.success?, output
+    assert_empty JSON.parse(output)
+  end
 end
