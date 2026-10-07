@@ -4,6 +4,7 @@ require "fileutils"
 require "rubygems/package"
 require "rbconfig"
 require "open3"
+require "json"
 require_relative "../runtime/environment"
 
 class GemHomeTest < Minitest::Test
@@ -22,14 +23,24 @@ class GemHomeTest < Minitest::Test
         gem.files = ["lib/shared_ci_fixture.rb"]
       end
       archive = Dir.chdir(dir) { Gem::Package.build(spec) }
-      env = SharedCI::Environment.child(ENV.to_h.merge("GEM_HOME" => home, "GEM_PATH" => home,
+      env = SharedCI::Environment.child(ENV.to_h.merge("GEM_HOME" => home, "GEM_PATH" => "#{home}:#{Gem.default_dir}",
         "PATH" => "#{home}/bin:#{ENV.fetch('PATH')}"))
       output, status = Open3.capture2e(env, RbConfig.ruby, "-S", "gem", "install",
         File.join(dir, archive), "--local", "--no-document", "--ignore-dependencies", unsetenv_others: true)
       assert status.success?, output
       assert File.file?(File.join(home, "gems/shared_ci_fixture-1.0.0/lib/shared_ci_fixture.rb"))
-      assert_equal home, env["GEM_PATH"]
-      assert env["PATH"].start_with?(home + "/bin:")
+      output, status = Open3.capture2e(env, RbConfig.ruby, "-rjson", "-e", <<~RUBY, unsetenv_others: true)
+        require "shared_ci_fixture"
+        require "minitest"
+        puts JSON.generate(home: Gem.dir, paths: Gem.path, fixture: Gem.loaded_specs.fetch("shared_ci_fixture").full_gem_path,
+                           minitest: Gem.loaded_specs.fetch("minitest").full_gem_path)
+      RUBY
+      assert status.success?, output
+      actual = JSON.parse(output)
+      assert_equal home, actual.fetch("home")
+      assert_includes actual.fetch("paths"), Gem.default_dir
+      assert actual.fetch("fixture").start_with?(home + "/gems/")
+      assert actual.fetch("minitest").start_with?(Gem.default_dir + "/gems/")
     end
   end
 end

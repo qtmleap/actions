@@ -23,6 +23,7 @@ export PATH="$bin:$PATH"
 export SHARED_ACTION_PATH="$root/actions/apple-toolchain"
 export GITHUB_WORKSPACE="$temp/workspace" RUNNER_TEMP="$temp/runner" SHARED_REPO_ROOT=Kotatsu
 export GITHUB_ENV="$temp/exported" GITHUB_OUTPUT="$temp/output"
+touch "$GITHUB_ENV" "$GITHUB_OUTPUT"
 export SHARED_DEVELOPER_DIR="$temp/developer" SHARED_XCODE_VERSION=26
 export SSH_AUTH_SOCK=sentinel AMBIENT_SECRET=sentinel BUNDLE_GITHUB__COM=sentinel
 printf '%s\n' Darwin > "$temp/os"
@@ -100,12 +101,16 @@ for arg in "$@"; do
 done
 [[ "$out" == "$state/runner/"* && -d "$out/gems/bin" ]]
 : > "$out/gems/writable"
+printf 'QTMLEAP_ACTIONS_ROOT=%s\nQTMLEAP_ACTIONS_REVISION=%s\n' "$SHARED_HOST_ROOT" "$QTMLEAP_ACTIONS_REVISION" > "$out/env"
+: > "$out/output"
 [[ "$args" == *' readonly '* || "$args" == *',readonly '* ]]
 [[ "$args" == *' ruby /shared/runtime/actions.rb ruby-check '* ]]
 printf '%s\n' 'fake-docker-gem-home-writable' >> "$state/docker-checked"
 SH
 chmod +x "$bin/docker"
 export SHARED_ACTION_PATH="$root/actions/ruby-check" SHARED_COMMAND='gem install ./local.gem --local --no-document'
+export QTMLEAP_ACTIONS_REVISION=1111111111111111111111111111111111111111
 bash "$root/runtime/docker-action.sh" ruby-check
 [[ -s "$temp/docker-checked" ]]
 printf '%s\n' 'Offline toolchain/environment/Docker launcher regressions passed (fake commands only)'
+bash "$root/test/docker_protocol_test.sh"

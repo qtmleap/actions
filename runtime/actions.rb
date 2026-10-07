@@ -27,6 +27,9 @@ module SharedCI
       working = inside_path(app, env.fetch("SHARED_WORKING_DIRECTORY", "."))
       case operation
       when "ruby-check"
+        if env["GEM_HOME"] == "/output/gems"
+          raise "Pinned Ruby image gem path changed" unless Gem.default_dir == "/usr/local/lib/ruby/gems/3.4.0" && Gem.path.include?(Gem.default_dir)
+        end
         command = env.fetch("SHARED_COMMAND")
         raise ArgumentError, "Empty command" if command.strip.empty?
         system(Environment.child(env), "bash", "-euc", command, chdir: working, unsetenv_others: true) || raise("Ruby check failed")

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-root="$(cd "$SHARED_ACTION_PATH/../.." && pwd -P)"
+if [[ -n "${SHARED_ACTION_ROOT:-}" ]]; then
+  root="$(cd -- "$SHARED_ACTION_ROOT" && pwd -P)"
+else
+  root="$(cd -- "${SHARED_ACTION_PATH:?}/../.." && pwd -P)"
+fi
 export SHARED_ACTION_ROOT="$root"
 revision="$(ruby -r "$root/runtime/bootstrap" -e 'app=SharedCI::Bootstrap.app_root!; revision=SharedCI::Bootstrap.lock!(app).fetch("revision"); expected=ENV["QTMLEAP_ACTIONS_REVISION"]; abort "Revision mismatch" if expected && expected != revision; SharedCI::Bootstrap.export!(root: ENV.fetch("SHARED_ACTION_ROOT"), app_root: app, revision: revision); print revision')"
 requested="${SHARED_XCODE_VERSION:?}"
