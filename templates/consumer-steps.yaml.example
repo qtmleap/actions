@@ -1,0 +1,61 @@
+# Illustration only: substitute one reviewed full SHA in ALL references and lock.
+# Keep caller jobs/triggers/environments/permissions/labels/concurrency unchanged.
+# actions/checkout must use persist-credentials: false and the exact verified SHA.
+# App private key goes only to repository-token inputs, never env.
+# For a nested checkout add repo-root: Kotatsu to EVERY shared composite below.
+# Adapter/working-directory/relative record paths are relative to that app root.
+# xcode-version accepts the caller's major profile '26'/'27' or exact full version.
+# release-record rejects stale source fields; default expected-source-sha is github.sha.
+steps:
+  - uses: qtmleap/actions/actions/apple-toolchain@FULL_REVIEWED_SHA
+    with:
+      xcode-version: CALLER_EXACT_XCODE_VERSION
+      developer-dir: CALLER_EXACT_DEVELOPER_DIRECTORY
+  - uses: qtmleap/actions/actions/setup-ruby@FULL_REVIEWED_SHA
+    with:
+      ruby-version: '3.4.10'
+  # Wire existing verified SHA/PR env names from the separate verify job.
+  # The app-owned authorize operation validates clean exact live source before secrets.
+  - uses: qtmleap/actions/actions/run-adapter@FULL_REVIEWED_SHA
+    with:
+      adapter: fastlane/adapters/shared-v1.rb
+      operation: authorize
+      argv-json: '[]'
+  - id: match-token
+    uses: qtmleap/actions/actions/repository-token@FULL_REVIEWED_SHA
+    with:
+      client-id: ${{ secrets.TESTFLIGHT_MATCH_APP_CLIENT_ID }}
+      private-key: ${{ secrets.TESTFLIGHT_MATCH_APP_PRIVATE_KEY }}
+      repository: match
+  - id: package-token
+    uses: qtmleap/actions/actions/repository-token@FULL_REVIEWED_SHA
+    with:
+      client-id: ${{ secrets.TESTFLIGHT_MATCH_APP_CLIENT_ID }}
+      private-key: ${{ secrets.TESTFLIGHT_MATCH_APP_PRIVATE_KEY }}
+      repository: QuantumLeap
+  - uses: qtmleap/actions/actions/run-adapter@FULL_REVIEWED_SHA
+    with:
+      adapter: fastlane/adapters/shared-v1.rb
+      operation: release
+      argv-json: '[]'
+    env:
+      TESTFLIGHT_MATCH_GIT_TOKEN: ${{ steps.match-token.outputs.token }}
+      TESTFLIGHT_QUANTUMLEAP_READ_TOKEN: ${{ steps.package-token.outputs.token }}
+      # Add only this app's existing protected ASC/MATCH/Firebase names HERE.
+      # Keep MUSICFIN_ consumers' names unchanged, do not rename secrets.
+  - name: Independent recovery
+    if: always()
+    uses: qtmleap/actions/actions/run-adapter@FULL_REVIEWED_SHA
+    with:
+      adapter: fastlane/adapters/shared-v1.rb
+      operation: cleanup
+      argv-json: '[]'
+    # No secrets in this step. Cleanup must retain state on restoration failure.
+  - name: Independent confirmed receipts
+    if: always()
+    uses: qtmleap/actions/actions/release-record@FULL_REVIEWED_SHA
+    with:
+      name: CALLER_EXISTING_ARTIFACT_NAME
+      path: ${{ runner.temp }}/release-record/*.json
+      if-no-files-found: ignore
+      expected-source-sha: ${{ github.sha }}

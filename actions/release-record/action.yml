@@ -1,0 +1,40 @@
+name: Preserve release records
+description: Validate and snapshot bounded JSON receipts independently of cleanup
+inputs:
+  repo-root:
+    description: App checkout relative to GITHUB_WORKSPACE
+    default: '.'
+  expected-source-sha:
+    description: Exact source SHA required in every receipt source field
+    default: ${{ github.sha }}
+  name:
+    description: Artifact name selected by caller
+    required: true
+  path:
+    description: Explicit JSON receipt glob (not a directory)
+    required: true
+  if-no-files-found:
+    description: ignore, warn or error
+    default: ignore
+runs:
+  using: composite
+  steps:
+    - id: receipts
+      if: always()
+      shell: bash
+      env:
+        SHARED_REPO_ROOT: ${{ inputs.repo-root }}
+        SHARED_EXPECTED_SOURCE_SHA: ${{ inputs.expected-source-sha }}
+        SHARED_ACTION_PATH: ${{ github.action_path }}
+        SHARED_RECORD_PATH: ${{ inputs.path }}
+        SHARED_MISSING: ${{ inputs.if-no-files-found }}
+      run: |
+        export SHARED_ACTION_ROOT="$(cd "$SHARED_ACTION_PATH/../.." && pwd -P)"
+        ruby "$SHARED_ACTION_ROOT/runtime/actions.rb" release-record
+    - if: always() && steps.receipts.outcome == 'success' && steps.receipts.outputs.found == 'true'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # verified official v4.6.2
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ steps.receipts.outputs.path }}/*.json
+        if-no-files-found: error
+        include-hidden-files: false

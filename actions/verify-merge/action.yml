@@ -1,0 +1,34 @@
+name: Verify merge
+description: Execute the consumer merge adapter without release credentials
+inputs:
+  repo-root:
+    description: App checkout relative to GITHUB_WORKSPACE
+    default: '.'
+  adapter:
+    description: Repository-relative Ruby verifier adapter
+    required: true
+  github-token:
+    description: Read-only check and workflow token
+    required: true
+  working-directory:
+    description: Repository-relative working directory
+    default: '.'
+outputs:
+  sha:
+    description: Verified merge SHA
+    value: ${{ steps.verify.outputs.sha }}
+  pr_number:
+    description: Verified PR number
+    value: ${{ steps.verify.outputs.pr_number }}
+runs:
+  using: composite
+  steps:
+    - id: verify
+      shell: bash
+      env:
+        SHARED_REPO_ROOT: ${{ inputs.repo-root }}
+        SHARED_ACTION_PATH: ${{ github.action_path }}
+        SHARED_ADAPTER: ${{ inputs.adapter }}
+        SHARED_GITHUB_TOKEN: ${{ inputs.github-token }}
+        SHARED_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: bash "$SHARED_ACTION_PATH/../../runtime/docker-action.sh" verify-merge

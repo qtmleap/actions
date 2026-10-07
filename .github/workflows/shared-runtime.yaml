@@ -1,0 +1,41 @@
+name: Shared runtime
+on:
+  pull_request:
+  push:
+    branches: [master, codex/shared-cd]
+permissions:
+  contents: read
+jobs:
+  shared-tests:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest, docker]
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # verified official v5.0.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # verified official v2.0.2
+        with:
+          bun-version: '1.3.6'
+      - name: Static contracts
+        run: bun tools/static-check.mjs
+      - name: Behavioral suites and runtime syntax in pinned Ruby Docker
+        shell: bash
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/work,readonly" \
+            --tmpfs /tmp:rw,exec,nosuid,nodev --workdir /work --env HOME=/tmp \
+            ruby:3.4.10@sha256:ce3b7a999d9e430e59e1a12456c631fbea3dd18948c89cf8a913c3566c77b2ae \
+            bash -euc 'for file in runtime/*.rb runtime/legacy/*.rb templates/*.rb; do ruby -c "$file"; done; ruby test/run_all.rb'
+      - name: Shell syntax
+        shell: bash
+        run: |
+          bash -n runtime/*.sh runtime/legacy/*.sh test/shell_regressions.sh
+          bash test/shell_regressions.sh
+      - name: Workflow and composite action lint
+        shell: bash
+        run: |
+          docker run --rm --network none --user "$(id -u):$(id -g)" --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/work,readonly" --workdir /work \
+            rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
+          ruby_container=ruby:3.4.10@sha256:ce3b7a999d9e430e59e1a12456c631fbea3dd18948c89cf8a913c3566c77b2ae
+          docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE,target=/work,readonly" --workdir /work "$ruby_container" ruby tools/action_contract.rb

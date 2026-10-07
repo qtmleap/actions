@@ -1,0 +1,33 @@
+name: Run adapter
+description: Execute a versioned Ruby consumer adapter with explicit operation and JSON argv
+inputs:
+  repo-root:
+    description: App checkout relative to GITHUB_WORKSPACE
+    default: '.'
+  adapter:
+    description: Repository-relative Ruby adapter path
+    required: true
+  operation:
+    description: Lowercase hyphenated adapter operation
+    required: true
+  argv-json:
+    description: Array of literal string arguments
+    default: '[]'
+  working-directory:
+    description: Repository-relative working directory
+    default: '.'
+runs:
+  using: composite
+  steps:
+    - if: always()
+      shell: bash
+      env:
+        SHARED_REPO_ROOT: ${{ inputs.repo-root }}
+        SHARED_ACTION_PATH: ${{ github.action_path }}
+        SHARED_ADAPTER: ${{ inputs.adapter }}
+        SHARED_OPERATION: ${{ inputs.operation }}
+        SHARED_ARGV_JSON: ${{ inputs.argv-json }}
+        SHARED_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: |
+        export SHARED_ACTION_ROOT="$(cd "$SHARED_ACTION_PATH/../.." && pwd -P)"
+        ruby "$SHARED_ACTION_ROOT/runtime/actions.rb" run-adapter
